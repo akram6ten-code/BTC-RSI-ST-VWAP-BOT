@@ -21,6 +21,7 @@ threading.Thread(target=run_flask, daemon=True).start()
 # --- YOUR BOT CONFIG ---
 DELTA_API_KEY = os.getenv("DELTA_API_KEY")
 DELTA_API_SECRET = os.getenv("DELTA_API_SECRET")
+LEVERAGE = 100
 # Add your RSI+ST+VWAP logic below
 
 print("RSI + SuperTrend + VWAP Bot Started...", flush=True)
