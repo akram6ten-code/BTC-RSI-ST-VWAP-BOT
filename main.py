@@ -1,62 +1,45 @@
-import time
-import requests
-import pandas as pd
+import time, requests, pandas as pd
 from datetime import datetime, timedelta
 
-# ========== CONFIG - Yahan apni keys daal de ==========
 DELTA_API_KEY = "QpsoKOJgYw1VaDyg8evzwfPQowkPoB"
 DELTA_API_SECRET = "cprr4BdyjK5BY3XJLBABlIYp0OKgIBQ4GXRzM1iiTzf2Ahkak3THrwhsPzzO"
 TELEGRAM_BOT_TOKEN = "8470029646:AAHuy2_FeSA4DZRz6L25n0LvSJgX-r9OiAU"
 TELEGRAM_CHAT_ID = "6107508649"
 
-LEVERAGE = 150
-SYMBOL = "BTCUSD"  # Underlying for signal
+def get_rsi(c, p=14):
+    d = c.diff()
+    g = (d.where(d > 0, 0)).rolling(p).mean()
+    l = (-d.where(d < 0, 0)).rolling(p).mean()
+    r = g / l
+    return 100 - (100 / (1 + r))
 
-# ========== INDICATORS ==========
-def get_rsi(close, period=14):
-    delta = close.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss
-    return 100 - (100 / (1 + rs))
-
-def get_supertrend(df, period=10, multiplier=3):
+def get_supertrend(df, p=10, m=3):
     hl2 = (df['high'] + df['low']) / 2
-    atr = (df['high'] - df['low']).rolling(period).mean()
-    upper = hl2 + (multiplier * atr)
-    lower = hl2 - (multiplier * atr)
-    # Simple logic
+    atr = (df['high'] - df['low']).rolling(p).mean()
+    lo = hl2 - (m * atr)
     df['st_dir'] = 1
-    df.loc[df['close'] < lower, 'st_dir'] = -1
+    df.loc[df['close'] < lo, 'st_dir'] = -1
     return df
 
 def get_vwap(df):
     df['vwap'] = (df['close'] * df['volume']).cumsum() / df['volume'].cumsum()
     return df
 
-# ========== DELTA FUNCTIONS ==========
 def send_telegram(msg):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID, "text": msg})
+    try:
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", data={"chat_id": TELEGRAM_CHAT_ID, "text": msg}, timeout=5)
+    except: pass
 
 def get_btc_data():
-    # Delta se BTCUSD 5min candle lega signal ke liye
     url = "https://api.delta.exchange/v2/history/candles"
-    params = {"resolution": "5", "symbol": "BTCUSD", "start": int((datetime.now() - timedelta(days=1)).timestamp())}
-    r = requests.get(url, params=params).json()
+    par = {"resolution": "5", "symbol": "BTCUSD", "start": int((datetime.now() - timedelta(days=1)).timestamp())}
+    r = requests.get(url, params=par, timeout=10).json()
     df = pd.DataFrame(r['result'])
     df.columns = ['time','open','high','low','close','volume']
-    df['close'] = df['close'].astype(float)
+    for c in ['open','high','low','close','volume']: df[c] = df[c].astype(float)
     return df
 
-def place_option_order(strike_type="CALL"):
-    # Yahan Next Day Expiry wala contract auto find karega
-    # Demo order logic
-    send_telegram(f"🚀 SIGNAL MILA - {strike_type} SELL\nStrike: Auto Next Day\nLeverage: {LEVERAGE}x Isolated\nTime: {datetime.now()}")
-    print("ORDER PLACED")
-
-# ========== MAIN LOOP ==========
-send_telegram(f"🚀 BOT RESTARTED\nLeverage: {LEVERAGE}x Isolated\nStrategy: RSI+ST+VWAP+TrendMagic\nFilter: Next Day Expiry")
+send_telegram("BOT RESTARTED - Premium Filter Removed - 150x")
 
 while True:
     try:
@@ -64,21 +47,16 @@ while True:
         df['rsi'] = get_rsi(df['close'])
         df = get_supertrend(df)
         df = get_vwap(df)
-        
         last = df.iloc[-1]
-        print(f"Checking... RSI:{last['rsi']:.2f} | Close:{last['close']} | VWAP:{last['vwap']:.2f} | ST:{last['st_dir']}")
+        print(f"RSI:{last['rsi']:.1f} ST:{last['st_dir']}")
 
-        # SELL CALL CONDITION
         if last['rsi'] > 65 and last['close'] < last['vwap'] and last['st_dir'] == -1:
-            place_option_order("CALL")
-            time.sleep(300) # 5 min rukega ek order ke baad
-
-        # SELL PUT CONDITION
-        if last['rsi'] < 35 and last['close'] > last['vwap'] and last['st_dir'] == 1:
-            place_option_order("PUT")
+            send_telegram(f"CALL SELL SIGNAL {datetime.now()}")
             time.sleep(300)
-
+        if last['rsi'] < 35 and last['close'] > last['vwap'] and last['st_dir'] == 1:
+            send_telegram(f"PUT SELL SIGNAL {datetime.now()}")
+            time.sleep(300)
         time.sleep(60)
     except Exception as e:
-        print(f"Error: {e}")
+        print(e)
         time.sleep(10)
