@@ -1,4 +1,26 @@
-import time, requests, pandas as pd
+# --- YE FIX HAI, ISKO SABSE UPAR DAL DE ---
+import os
+from flask import Flask
+import threading
+
+app = Flask(__name__)
+
+@app.route('/')
+def health_check():
+    return "BOT IS LIVE - 100 LOT - 150x - OK", 200
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
+# Flask ko background me chalao
+threading.Thread(target=run_web_server, daemon=True).start()
+# --- FIX KHATAM ---
+
+# Iske neeche se tera asli bot ka code start hoga
+import time
+import requests
+# ... baki tera code ...import time, requests, pandas as pd
 from datetime import datetime, timedelta
 
 DELTA_API_KEY = "QpsoKOJgYw1VaDyg8evzwfPQowkPoB"
